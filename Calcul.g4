@@ -69,9 +69,6 @@ instruction returns [ String code ]
     | output finInstruction
         { $code = $output.code; }
 
-    | bloc
-        { $code = $bloc.code; }
-
     | logique
         { $code = $logique.code; }
 
@@ -81,19 +78,14 @@ instruction returns [ String code ]
     | condition
         { $code = $condition.code; }
 
+    | boucle
+        { $code = $boucle.code; }
 
-    | 'while' '(' condition ')' a = instruction
-        {
-            String boucle1 = newLabel();
-            String boucle2 = newLabel();
-            
-            $code = "LABEL " + boucle1 + "\n";
-            $code += $condition.code;
-            $code += "JUMPF "+ boucle2 + "\n";
-            $code += $a.code;
-            $code += "JUMP "+ boucle1 + "\n";
-            $code += "LABEL "+ boucle2 + "\n";
-        }
+    | bloc
+        { $code = $bloc.code; }
+
+    | ifCondition
+        { $code = $ifCondition.code; }
 
     | finInstruction
     ; 
@@ -109,6 +101,7 @@ expression returns [ String code ]
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
             $code =  "PUSHG " + vi.address + "\n";
         }
+    | COMMENTAIRES
     ;
 
 finInstruction : ( NEWLINE | ';' )+ ;
@@ -137,13 +130,21 @@ assignation returns [ String code ]
             $code =  $expression.code + "STOREG " + vi.address + "\n";
         }
 
-    |   IDENTIFIANT '+=' expression
+    |   IDENTIFIANT op=('+='|'-='|'*=') expression
         {  
             VariableInfo vim = tablesSymboles.getVar($IDENTIFIANT.text);
-             $code = "PUSHG " + vim.address + "\n" 
-                  + $expression.code
-                  + "ADD\n"                
-                  + "STOREG " + vim.address + "\n";
+            $code = "PUSHG " + vim.address + "\n" 
+                            + $expression.code;
+
+            if($op.text.equals("+=")){
+                $code += "ADD\n";
+            } else if($op.text.equals("-=")){
+                $code += "SUB\n";
+            } else if($op.text.equals("*=")){
+                $code += "MUL\n";
+            }
+                
+            $code += "STOREG " + vim.address + "\n";
         }
     ;
 
@@ -168,7 +169,7 @@ output returns [ String code ]
     | 'output' '(' expression ')' 
         {  
             $code = $expression.code;
-            $code = "WRITE\n";
+            $code += "WRITE\n";
         }
     ;
 
@@ -177,9 +178,80 @@ bloc returns[ String code ]
     : '{' NEWLINE? (instruction { $code += $instruction.code; })* '}' NEWLINE*
     ;
 
+
 condition returns [String code]
     : 'True'  { $code = "PUSHI 1\n"; }
     | 'False' { $code = "PUSHI 0\n"; }
+    | a = expression operateur b = expression
+        {
+            String boucle1 = newLabel();
+            String exit = newLabel();
+            $code = $a.code;
+            $code += $b.code;
+            $code += $operateur.code;
+            $code += "JUMPF "+boucle1+"\n";
+            $code += "PUSHI 1\n";
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+ boucle1 + "\n";
+            $code += "PUSHI 0\n";
+            $code += "LABEL "+exit+"\n";
+        }
+    | c = condition logique d = condition
+        {
+            String boucle1 = newLabel();
+            String exit = newLabel();
+
+            if($logique.code.equals("&&")){
+                $code = $c.code; //le code c renvoie en dernier 1 ou 0
+                $code += "PUSHI 1\n";
+                $code += "EQUAL\n";
+                $code += "JUMPF "+boucle1+"\n";
+                $code += $d.code;
+                $code += "PUSHI 1\n";
+                $code += "EQUAL\n";
+                $code += "JUMPF "+boucle1+"\n";
+                $code += "PUSHI 1\n";
+                $code += "JUMP "+exit+"\n"; 
+            }else{ //OPERATEUR ||
+                String or = newLabel();
+                
+                //on test le premier
+                $code = $c.code;
+                $code += "PUSHI 1\n";
+                $code += "EQUAL\n";
+                $code += "JUMPF "+or+"\n"; //Si c'est faux on test la deuxième condition
+                $code += "PUSHI 1\n"; //Sinon on s'arrête là et on renvoie 1
+                $code += "JUMP "+exit+"\n";
+
+                //on test le second
+                $code += "LABEL "+or+"\n";
+                $code += $d.code;
+                $code += "PUSHI 1\n";
+                $code += "EQUAL\n"; //si c'est vrai on renvoie 1
+                $code += "JUMPF "+boucle1+"\n"; //sinon on renvoie 0
+                $code += "PUSHI 1\n";
+                $code += "JUMP "+exit+"\n"; 
+            }
+            $code += "LABEL "+ boucle1 + "\n";
+            $code += "PUSHI 0\n"; //false
+            $code += "LABEL "+exit+"\n";
+        }
+    | '!' condition
+        {
+            String boucle1 = newLabel();
+            String exit = newLabel();
+
+            $code = $condition.code;
+            $code += "PUSHI 0\n";
+            $code += "EQUAL \n";
+            $code += "JUMPF "+boucle1+"\n";
+            $code += "PUSHI 1\n";
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+ boucle1 + "\n";
+            $code += "PUSHI 0\n"; //false
+            $code += "LABEL "+exit+"\n";
+        }
+    | '(' condition ')' { $code = $condition.code; }
     ;
 
 operateur returns [String code]
@@ -197,6 +269,62 @@ logique returns [String code]
     | a=logique 'and' b=logique  { $code = $a.code + $b.code + "MUL\n"; }
     | a=logique 'or' b=logique  { $code = $a.code + $b.code + "PUSHI 0\nSUP\n"; }
     | '(' logique ')'{ $code = $logique.code; }
+    ;
+
+boucle returns [ String code ] 
+    : 'while' '(' condition ')' a = instruction
+        {
+            String boucle1 = newLabel();
+            String boucle2 = newLabel();
+            
+            $code = "LABEL " + boucle1 + "\n";
+            $code += $condition.code;
+            $code += "JUMPF "+ boucle2 + "\n";
+            $code += $a.code;
+            $code += "JUMP "+ boucle1 + "\n";
+            $code += "LABEL "+ boucle2 + "\n";
+        }
+        |'for' '(' c= assignation ';' condition ';' b=assignation ')' instruction
+        {
+            String debutFor = newLabel();
+            String exit = newLabel();
+
+            $code = $c.code;
+            $code += "LABEL " + debutFor + "\n";
+            $code += $condition.code;
+            $code += "JUMPF "+ exit + "\n";
+            $code += $instruction.code;
+            $code += $b.code;
+            $code += "JUMP "+ debutFor + "\n";
+            $code += "LABEL "+ exit + "\n";
+        }
+    ;
+
+ifCondition returns [ String code ]
+    : 'if' '(' condition ')' a = instruction 'else' b = instruction
+        {
+            String elseArea = newLabel();
+            String exit = newLabel();
+
+            $code = $condition.code;
+            $code += "JUMPF "+elseArea + "\n";
+            $code += $a.code;
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+elseArea + "\n";
+            $code += $b.code;
+            $code += "JUMP "+exit+"\n"; 
+            $code += "LABEL "+exit+"\n";
+        }
+    | 'if' '(' condition ')' a = instruction
+        {
+            String exit = newLabel();
+
+            $code = $condition.code;
+            $code += "JUMPF "+exit + "\n";
+            $code += $a.code;
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+exit+"\n";
+        }
     ;
 
 // lexer
