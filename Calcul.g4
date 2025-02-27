@@ -196,71 +196,42 @@ condition returns [String code]
             $code += "PUSHI 0\n";
             $code += "LABEL "+exit+"\n";
         }
-    | c = condition logique d = condition
+    | 'not' c = condition  // Ajout de NOT
         {
             String boucle1 = newLabel();
             String exit = newLabel();
-
-            if($logique.code.equals("&&")){
-                $code = $c.code; //le code c renvoie en dernier 1 ou 0
-                $code += "PUSHI 1\n";
-                $code += "EQUAL\n";
-                $code += "JUMPF "+boucle1+"\n";
-                $code += $d.code;
-                $code += "PUSHI 1\n";
-                $code += "EQUAL\n";
-                $code += "JUMPF "+boucle1+"\n";
-                $code += "PUSHI 1\n";
-                $code += "JUMP "+exit+"\n"; 
-            }else{ //OPERATEUR ||
-                String or = newLabel();
-                
-                //on test le premier
-                $code = $c.code;
-                $code += "PUSHI 1\n";
-                $code += "EQUAL\n";
-                $code += "JUMPF "+or+"\n"; //Si c'est faux on test la deuxième condition
-                $code += "PUSHI 1\n"; //Sinon on s'arrête là et on renvoie 1
-                $code += "JUMP "+exit+"\n";
-
-                //on test le second
-                $code += "LABEL "+or+"\n";
-                $code += $d.code;
-                $code += "PUSHI 1\n";
-                $code += "EQUAL\n"; //si c'est vrai on renvoie 1
-                $code += "JUMPF "+boucle1+"\n"; //sinon on renvoie 0
-                $code += "PUSHI 1\n";
-                $code += "JUMP "+exit+"\n"; 
-            }
-            $code += "LABEL "+ boucle1 + "\n";
-            $code += "PUSHI 0\n"; //false
-            $code += "LABEL "+exit+"\n";
-        }
-    | '!' condition
-        {
-            String boucle1 = newLabel();
-            String exit = newLabel();
-
-            $code = $condition.code;
+            $code = $c.code;
             $code += "PUSHI 0\n";
             $code += "EQUAL \n";
             $code += "JUMPF "+boucle1+"\n";
             $code += "PUSHI 1\n";
             $code += "JUMP "+exit+"\n";
             $code += "LABEL "+ boucle1 + "\n";
-            $code += "PUSHI 0\n"; //false
+            $code += "PUSHI 0\n";
             $code += "LABEL "+exit+"\n";
         }
+    | f = condition 'or' g = condition  // Ajout de OR
+        {
+            $code = $f.code + $g.code + "PUSHI 0\nSUP\n";
+        }
+    | d = condition 'and' e = condition  // Ajout de AND
+        {
+            $code = $d.code + $e.code + "MUL\n"; 
+        }
     | '(' condition ')' { $code = $condition.code; }
+    | 'True'  { $code = "PUSHI 1\n"; }
+    | 'False' { $code = "PUSHI 0\n"; }
     ;
 
 operateur returns [String code]
-    : '>'  { $code = "SUP\n"; }
+    : '==' { $code = "EQUAL\n"; }
+    | '!=' { $code = "NEQ\n"; }
+    | '<>' { $code = "NEQ\n"; }
+    | '>'  { $code = "SUP\n"; }
     | '>=' { $code = "SUPEQ\n"; }
     | '<' { $code = "INF\n"; }
     | '<=' { $code = "INFEQ\n"; }
-    | '==' { $code = "EQUAL\n"; }
-    | '!=' { $code = "NEQ\n"; }
+
     ;
 
 
@@ -315,7 +286,7 @@ ifCondition returns [ String code ]
             $code += "JUMP "+exit+"\n"; 
             $code += "LABEL "+exit+"\n";
         }
-    | 'if' '(' condition ')' a = instruction
+    | 'if' '(' condition ')' 'then' a = instruction
         {
             String exit = newLabel();
 
