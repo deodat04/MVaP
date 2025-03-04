@@ -196,6 +196,16 @@ condition returns [String code]
             $code += "PUSHI 0\n";
             $code += "LABEL "+exit+"\n";
         }
+    | '(' condition ')' { $code = $condition.code; }
+
+    | d = condition 'and' e = condition  // Ajout de AND
+        {
+            $code = $d.code + $e.code + "MUL\n"; 
+        }
+    | f = condition 'or' g = condition  // Ajout de OR
+        {
+            $code = $f.code + $g.code + "ADD\n";
+        }
     | 'not' c = condition  // Ajout de NOT
         {
             String boucle1 = newLabel();
@@ -210,17 +220,6 @@ condition returns [String code]
             $code += "PUSHI 0\n";
             $code += "LABEL "+exit+"\n";
         }
-    | f = condition 'or' g = condition  // Ajout de OR
-        {
-            $code = $f.code + $g.code + "PUSHI 0\nSUP\n";
-        }
-    | d = condition 'and' e = condition  // Ajout de AND
-        {
-            $code = $d.code + $e.code + "MUL\n"; 
-        }
-    | '(' condition ')' { $code = $condition.code; }
-    | 'True'  { $code = "PUSHI 1\n"; }
-    | 'False' { $code = "PUSHI 0\n"; }
     ;
 
 operateur returns [String code]
@@ -293,6 +292,20 @@ ifCondition returns [ String code ]
             $code = $condition.code;
             $code += "JUMPF "+exit + "\n";
             $code += $a.code;
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+exit+"\n";
+        }
+    | 'if' '(' condition ')' 'then' a = instruction 'else' b = instruction
+        {
+            String exit = newLabel();
+            String elseArea = newLabel();
+
+            $code = $condition.code;
+            $code += "JUMPF "+exit + "\n";
+            $code += $a.code;
+            $code += "JUMP "+exit+"\n";
+            $code += "LABEL "+elseArea + "\n";
+            $code += $b.code;
             $code += "JUMP "+exit+"\n";
             $code += "LABEL "+exit+"\n";
         }
