@@ -44,8 +44,13 @@ calcul returns [ String code ]
 @after{ System.out.println($code); } // On affiche le code effectivement produit
 
     :   ( decl  { $code += $decl.code; })*
+        { $code += "  JUMP Start\n"; }
         NEWLINE*
 
+        (fonction { $code += $fonction.code; })*
+        NEWLINE*
+
+        { $code += "LABEL Start\n"; }
         (instruction { $code += $instruction.code; })*
 
         { $code += "  HALT\n"; }
@@ -90,7 +95,7 @@ instruction returns [ String code ]
     | finInstruction
     ; 
 
-expression returns [ String code ]
+expression returns [ String code, String type ]
     :   '-' expression {$code = "PUSHI 0\n" + $expression.code + "SUB\n";}
     |   g=expression op=('*'|'/'|'%') d=expression {$code = evalexpr($g.code, $op.text, $d.code);}
     |   g=expression op=('+'|'-') d=expression  {$code = evalexpr($g.code, $op.text, $d.code);}
@@ -164,12 +169,15 @@ output returns [ String code ]
         {  
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
             $code = "PUSHG " + vi.address + "\nWRITE\n";
+            $code += "POP\n";
+
         }
 
     | 'output' '(' expression ')' 
         {  
             $code = $expression.code;
             $code += "WRITE\n";
+            $code += "POP\n";
         }
     ;
 
@@ -254,7 +262,7 @@ boucle returns [ String code ]
             $code += "JUMP "+ boucle1 + "\n";
             $code += "LABEL "+ boucle2 + "\n";
         }
-        |'for' '(' c= assignation ';' condition ';' b=assignation ')' instruction
+    |'for' '(' c= assignation ';' condition ';' b=assignation ')' instruction
         {
             String debutFor = newLabel();
             String exit = newLabel();
@@ -301,13 +309,27 @@ ifCondition returns [ String code ]
             String elseArea = newLabel();
 
             $code = $condition.code;
-            $code += "JUMPF "+exit + "\n";
+            $code += "JUMPF "+elseArea + "\n";
             $code += $a.code;
             $code += "JUMP "+exit+"\n";
             $code += "LABEL "+elseArea + "\n";
             $code += $b.code;
             $code += "JUMP "+exit+"\n";
             $code += "LABEL "+exit+"\n";
+        }
+    ;
+
+fonction returns [ String code ]
+    : TYPE IDENTIFIANT
+        {
+            tablesSymboles.addVarDecl($IDENTIFIANT.text,"int");
+            VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
+            $code = "PUSHI 0\n";
+        }
+        '('  ')' bloc
+        {
+            $code += $bloc.code;
+            $code += "RETURN\n";  //  Return "de sécurité"
         }
     ;
 
