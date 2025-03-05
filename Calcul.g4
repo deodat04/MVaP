@@ -107,6 +107,10 @@ expression returns [ String code, String type ]
             $code =  "PUSHG " + vi.address + "\n";
         }
     | COMMENTAIRES
+    | IDENTIFIANT '('')' // appel de fonction
+        {
+            $code =  "CALL " + $IDENTIFIANT.text + "\n";            
+        }
     ;
 
 finInstruction : ( NEWLINE | ';' )+ ;
