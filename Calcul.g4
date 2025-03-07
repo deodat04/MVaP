@@ -332,6 +332,7 @@ fonction returns [ String code ]
         }
         '('  ')' bloc
         {
+            $code += "LABEL " + $IDENTIFIANT.text + "\n";
             $code += $bloc.code;
             $code += "RETURN\n";  //  Return "de sécurité"
         }
