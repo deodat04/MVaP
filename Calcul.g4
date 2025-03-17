@@ -95,6 +95,21 @@ instruction returns [ String code ]
     | finInstruction
     ; 
 
+args returns [ String code, int size] @init{ $code = new String(); $size = 0; }
+    : ( expression 
+    {
+        $code = $expression.code;
+        $size++;
+    }
+    ( ',' expression
+    {
+        $code += $expression.code;
+        $size++;
+    }
+    )*
+      )?
+    ;
+
 expression returns [ String code, String type ]
     :   '-' expression {$code = "PUSHI 0\n" + $expression.code + "SUB\n";}
     |   g=expression op=('*'|'/'|'%') d=expression {$code = evalexpr($g.code, $op.text, $d.code);}
@@ -104,12 +119,20 @@ expression returns [ String code, String type ]
     |   IDENTIFIANT  
         {
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code =  "PUSHG " + vi.address + "\n";
+            if(vi.scope == VariableInfo.Scope.PARAM){
+                $code = "PUSHL "+vi.address+"\n";
+            }else{
+                $code = "PUSHG "+vi.address+"\n";
+            }
+            
         }
     | COMMENTAIRES
-    | IDENTIFIANT '('')' // appel de fonction
+    | IDENTIFIANT '(' args ')'                  // Appel de fonction
         {
-            $code =  "CALL " + $IDENTIFIANT.text + "\n";            
+            $code = $args.code;
+            $code += "CALL "+$IDENTIFIANT.text+"\n";
+            for(int i=0;i<$args.size;i++){$code+="POP\n";}
+
         }
     ;
 
@@ -120,7 +143,14 @@ decl returns [ String code ]
         {  
             tablesSymboles.addVarDecl($IDENTIFIANT.text, $TYPE.text);
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code = "PUSHI 0\n" + $expression.code + "STOREG " + vi.address + "\n";
+            $code = "PUSHI 0\n";
+            $code += $expression.code;
+            if(vi.scope == VariableInfo.Scope.PARAM){
+                $code += "STOREL ";
+            }else{
+                $code += "STOREG ";
+            }
+            $code += vi.address + "\n";
         }
     |   TYPE IDENTIFIANT finInstruction
         {
@@ -136,14 +166,25 @@ assignation returns [ String code ]
     : IDENTIFIANT '=' expression
         {  
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code =  $expression.code + "STOREG " + vi.address + "\n";
+            $code =  $expression.code;
+            if(vi.scope == VariableInfo.Scope.PARAM){
+                $code += "STOREL ";
+            }else{
+                $code += "STOREG ";
+            }
+            $code += vi.address + "\n";
         }
 
     |   IDENTIFIANT op=('+='|'-='|'*=') expression
         {  
             VariableInfo vim = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code = "PUSHG " + vim.address + "\n" 
-                            + $expression.code;
+             if(vim.scope == VariableInfo.Scope.PARAM){
+                $code = "PUSHL ";
+            }else{
+                $code = "PUSHG " ;
+            }
+            $code += vim.address + "\n";
+            $code += $expression.code;
 
             if($op.text.equals("+=")){
                 $code += "ADD\n";
@@ -153,7 +194,12 @@ assignation returns [ String code ]
                 $code += "MUL\n";
             }
                 
-            $code += "STOREG " + vim.address + "\n";
+            if(vim.scope == VariableInfo.Scope.PARAM){
+                $code += "STOREL ";
+            }else{
+                $code += "STOREG ";
+            }
+            $code += vim.address + "\n";
         }
     ;
 
@@ -163,7 +209,13 @@ input returns [ String code ]
     : 'input' '(' IDENTIFIANT ')' 
         {  
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code = "READ\nSTOREG " + vi.address + "\n";
+            $code = "READ\n"; 
+             if(vi.scope == VariableInfo.Scope.PARAM){
+                $code += "STOREL ";
+            }else{
+                $code += "STOREG ";
+            }
+            $code += vi.address + "\n";
         }
     ;
 
@@ -172,7 +224,13 @@ output returns [ String code ]
     : 'output' '(' IDENTIFIANT ')' 
         {  
             VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code = "PUSHG " + vi.address + "\nWRITE\n";
+            if(vi.scope == VariableInfo.Scope.PARAM){
+                $code = "PUSHL ";
+            }else{
+                $code = "PUSHG ";
+            }
+            $code += vi.address;
+            $code += "\nWRITE\n";
             $code += "POP\n";
 
         }
@@ -323,19 +381,31 @@ ifCondition returns [ String code ]
         }
     ;
 
-fonction returns [ String code ]
+params
     : TYPE IDENTIFIANT
         {
-            tablesSymboles.addVarDecl($IDENTIFIANT.text,"int");
-            VariableInfo vi = tablesSymboles.getVar($IDENTIFIANT.text);
-            $code = "PUSHI 0\n";
+            tablesSymboles.addParam($IDENTIFIANT.text,"int");
         }
-        '('  ')' bloc
+        ( ',' TYPE IDENTIFIANT
+            {
+                tablesSymboles.addParam($IDENTIFIANT.text,"int");
+            }
+        )*
+    ;
+
+
+fonction returns [ String code ] @init{ tablesSymboles.enterFunction(); } @after{ tablesSymboles.exitFunction(); }
+    :
+    TYPE IDENTIFIANT 
         {
-            $code += "LABEL " + $IDENTIFIANT.text + "\n";
-            $code += $bloc.code;
-            $code += "RETURN\n";  //  Return "de sécurité"
+            tablesSymboles.addFunction($IDENTIFIANT.text, $TYPE.text);
         }
+        '('  params ? ')' bloc
+        {
+            $code = "LABEL " + $IDENTIFIANT.text + "\n";
+            $code += $bloc.code;
+            $code += "RETURN\n"; 
+        } 
     ;
 
 // lexer
