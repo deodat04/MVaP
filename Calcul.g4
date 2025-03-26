@@ -92,7 +92,14 @@ instruction returns [ String code ]
     | ifCondition
         { $code = $ifCondition.code; }
 
-    | finInstruction
+    | RETURN expression    
+        {
+            VariableInfo vi = tablesSymboles.getReturn();
+            $code = $expression.code;
+            $code += "STOREL " + vi.address + "\n";
+            $code += "RETURN\n";
+        }
+    | finInstruction { $code="";}
     ; 
 
 args returns [ String code, int size] @init{ $code = new String(); $size = 0; }
@@ -126,7 +133,6 @@ expression returns [ String code, String type ]
             }
             
         }
-    | COMMENTAIRES
     | IDENTIFIANT '(' args ')'                  // Appel de fonction
         {
             $code = $args.code;
@@ -403,6 +409,7 @@ fonction returns [ String code ] @init{ tablesSymboles.enterFunction(); } @after
         '('  params ? ')' bloc
         {
             $code = "LABEL " + $IDENTIFIANT.text + "\n";
+            $code += "PUSHI 0\n";
             $code += $bloc.code;
             $code += "RETURN\n"; 
         } 
@@ -410,6 +417,8 @@ fonction returns [ String code ] @init{ tablesSymboles.enterFunction(); } @after
 
 // lexer
 NEWLINE : '\r'? '\n';
+
+RETURN: 'return ';
 
 WS :   (' '|'\t')+ -> skip  ;
 
