@@ -92,10 +92,10 @@ instruction returns [ String code ]
     | ifCondition
         { $code = $ifCondition.code; }
 
-    | RETURN expression    
+    | RETURN expression finInstruction
         {
-            VariableInfo vi = tablesSymboles.getReturn();
             $code = $expression.code;
+            VariableInfo vi = tablesSymboles.getReturn();
             $code += "STOREL " + vi.address + "\n";
             $code += "RETURN\n";
         }
@@ -388,18 +388,6 @@ ifCondition returns [ String code ]
         }
     ;
 
-params
-    : TYPE IDENTIFIANT
-        {
-            tablesSymboles.addParam($IDENTIFIANT.text,"int");
-        }
-        ( ',' TYPE IDENTIFIANT
-            {
-                tablesSymboles.addParam($IDENTIFIANT.text,"int");
-            }
-        )*
-    ;
-
 
 fonction returns [ String code ] @init{ tablesSymboles.enterFunction(); } @after{ tablesSymboles.exitFunction(); }
     :
@@ -407,13 +395,24 @@ fonction returns [ String code ] @init{ tablesSymboles.enterFunction(); } @after
         {
             tablesSymboles.addFunction($IDENTIFIANT.text, $TYPE.text);
         }
-        '('  params ? ')' bloc
+        '('  params ? ')' instruction
         {
             $code = "LABEL " + $IDENTIFIANT.text + "\n";
-            $code += "PUSHI 0\n";
-            $code += $bloc.code;
+            $code += $instruction.code;
             $code += "RETURN\n"; 
         } 
+    ;
+
+params
+    : TYPE IDENTIFIANT
+        {
+            tablesSymboles.addParam($IDENTIFIANT.text,$TYPE.text);
+        }
+        ( ',' TYPE IDENTIFIANT
+            {
+                tablesSymboles.addParam($IDENTIFIANT.text,$TYPE.text);
+            }
+        )*
     ;
 
 // lexer
