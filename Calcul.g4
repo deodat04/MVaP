@@ -135,7 +135,8 @@ expression returns [ String code, String type ]
         }
     | IDENTIFIANT '(' args ')'                  // Appel de fonction
         {
-            $code = $args.code;
+            $code = "PUSHI 0\n";
+            $code += $args.code;
             $code += "CALL "+$IDENTIFIANT.text+"\n";
             for(int i=0;i<$args.size;i++){$code+="POP\n";}
 
