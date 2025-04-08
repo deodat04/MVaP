@@ -1,0 +1,5 @@
+int x
+x=5+7*3
+output(x)
+x=100-50/2
+output(x)

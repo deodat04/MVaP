@@ -1,0 +1,6 @@
+int a=10
+int b=5
+if (a > b) then output(a)
+   else output(b)
+if (a == b) then output(1)
+   else output(0)

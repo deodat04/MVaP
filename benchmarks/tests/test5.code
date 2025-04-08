@@ -1,0 +1,4 @@
+if (True and False) then output(1)
+   else output(0)
+if (not (False or False)) then output(1)
+   else output(0)

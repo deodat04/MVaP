@@ -1,0 +1,6 @@
+int x=10
+int f() {
+  x = x + 5
+}
+f()
+output(x)
